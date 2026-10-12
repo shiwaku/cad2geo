@@ -34,6 +34,41 @@ curl -o stage_100_1.dxf     $B/user/filer_public/7f/2b/7f2b1574-5a67-4072-8271-d
 - 取得元: <https://autodesk.com/autocad-samples>、<https://autodesk.com/autocadlt-samples>（ブラウザで手動ダウンロード）
 - 利用条件: Autodesk のサンプルとしての提供。**手元での検証にだけ使い、リポジトリにも公開デモにも入れない**
 
+### Schependomlaan（`real/schependomlaan/`）
+
+オランダ・ナイメーヘンの集合住宅（4 階建て、10 戸、2015〜2016 年施工）の BIM のデータセット。実在の建物で、CAD ソフトが書き出した DWG と IFC が両方あり、**再配布できる**。公開デモにも使える（出典を明記する）。
+
+- 取得元: <https://github.com/openBIMstandards/Archive-DataSetSchependomlaan>（現在は <https://github.com/buildingSMART/Sample-Test-Files/tree/master/IFC%202x3/Schependomlaan> に移っている）
+- 利用条件: LICENSE.MD に「(C) original owners. This work is licensed under the Creative Commons Attribution 4.0 International License.」（CC BY 4.0）
+- 全体は約 3 GB（点群・ドローン画像を含む）。使うファイルだけを取り出す
+
+```bash
+R=https://raw.githubusercontent.com/openBIMstandards/Archive-DataSetSchependomlaan/HEAD
+mkdir -p testdata/real/schependomlaan/{dwg,ifc} && cd testdata/real/schependomlaan
+D="Coordination%20model%20and%20subcontractors%20models/BIMsight%20Projectdata1/ProjectData"
+for f in BG Dak Fund. V1 V2 V3; do for k in "Rio+MV+Hwa" "Water+Gas+CV" Sparingen; do
+  curl -sfL -o "dwg/SONSBEEK-$f $k.dwg" "$R/$D/SONSBEEK-$f%20${k//+/%2B}.dwg"
+done; done   # 存在しない組み合わせ（BG・Fund. の Sparingen）は失敗してよい
+curl -sfL -o "ifc/IFC Schependomlaan.ifc" "$R/Design%20model%20IFC/IFC%20Schependomlaan.ifc"
+```
+
+| ファイル | 中身 | 特徴 |
+|---|---|---|
+| `dwg/SONSBEEK-*.dwg`（16 本） | 設備業者の図面。基礎（Fund.）・1 階（BG）・2〜4 階（V1〜V3）・屋根（Dak）ごとに、排水（Rio+MV+Hwa）・給水ガス暖房（Water+Gas+CV）・開口（Sparingen） | AC1024（R2010）。単位は m。全ファイルが同じ原点で、通り芯（レイヤ `New_A Stramien`）が共通。**建物の外形（壁）は描かれていない**（建築の下図が入っていない）。文字はオランダ語 |
+| `ifc/IFC Schependomlaan.ifc` | 設計モデル（Archicad、IFC2X3、49 MB） | DWG と同じ原点。IfcSite の緯度経度は RD の原点（アメルスフォールト）のままで、位置の情報として使えない |
+
+位置合わせの基準（どちらも再配布できる）:
+
+- 建物の外形: BAG（建物台帳）の pand `0268100000084949`（CC0）。PDOK の OGC API（`https://api.pdok.nl/kadaster/bag/ogc/v2/collections/pand/items`）で取得
+- 航空写真: PDOK の Luchtfoto（CC BY 4.0）。WMS `https://service.pdok.nl/hwh/luchtfotorgb/wms/v1_0`、レイヤ `Actueel_orthoHR`
+
+確認した結果（2026-10-12）:
+
+- DWG 16 本をすべて読めた（1 本あたり 511〜6,961 図形）。読み飛ばしたのは長さ 0 の線と OLE 埋め込みだけ
+- DWG に外形が無いので、IFC の 1 階の床・壁から外形を作り、BAG の外形に当てはめた（回転 21° で一意、IoU 0.93）。角 20 組のうち 4 組を対応点、16 組を検証点にして、1 階の DWG を RD New（`--work-crs EPSG:28992 --units m`）で位置合わせした
+- 回転 21.24°、対応点の残差 RMS 0.29 m、検証点の RMS 0.30 m・最大 0.40 m。残差はどれも建物の外向きで、BAG（外装の外側）と IFC の外形（構造壁）の差（レンガの外装、約 0.3 m）と合う
+- 同じ記録を `apply` で残り 15 本に適用できた。航空写真に重ねて、通り芯と外形が建物に合うことを目で確かめた
+
 ## 測量図面（座標付き）
 
 ### BODIK に登録された自治体の基本図・地形図 DXF（CC BY）

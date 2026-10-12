@@ -1,4 +1,4 @@
-//! 座標系。EPSG データベースは持たず、日本で使うものだけを表で持つ。
+//! 座標系。EPSG データベースは持たず、使うものだけを表で持つ（日本の座標系と、海外の検証データ用の UTM・RD New）。
 
 use std::fmt;
 use std::str::FromStr;
@@ -30,7 +30,8 @@ const PLANE_ORIGINS: [(f64, f64); 19] = [
     (26.0, 154.0),
 ];
 
-/// 扱える座標系。JGD2000 / JGD2011 と WGS84 は同一とみなす（Web 地図の表示では問題にならない）。
+/// 扱える座標系。JGD2000 / JGD2011 / ETRS89 と WGS84 は同一とみなす（差は 1 m 未満で、Web 地図の表示では
+/// 問題にならない）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Crs {
     /// 経緯度（EPSG:4326 / 6668 / 4612）
@@ -39,6 +40,11 @@ pub enum Crs {
     WebMercator,
     /// 平面直角座標系（JGD2011: EPSG:6669〜6687、JGD2000: EPSG:2443〜2461）
     JapanPlane { epsg: u32, zone: u8 },
+    /// UTM（WGS84: EPSG:32601〜32660 / 32701〜32760、ETRS89: EPSG:25828〜25838、
+    /// JGD2011: EPSG:6688〜6692、JGD2000: EPSG:3097〜3101）
+    Utm { epsg: u32, zone: u8, south: bool },
+    /// オランダの RD New（EPSG:28992）
+    RdNew,
 }
 
 impl Crs {
@@ -56,14 +62,29 @@ impl Crs {
                 epsg,
                 zone: (epsg - 2442) as u8,
             }),
+            32601..=32660 => Ok(Crs::utm(epsg, epsg - 32600, false)),
+            32701..=32760 => Ok(Crs::utm(epsg, epsg - 32700, true)),
+            25828..=25838 => Ok(Crs::utm(epsg, epsg - 25800, false)),
+            6688..=6692 => Ok(Crs::utm(epsg, epsg - 6688 + 51, false)),
+            3097..=3101 => Ok(Crs::utm(epsg, epsg - 3097 + 51, false)),
+            28992 => Ok(Crs::RdNew),
             _ => Err(Error::UnsupportedCrs(format!("EPSG:{epsg}"))),
+        }
+    }
+
+    fn utm(epsg: u32, zone: u32, south: bool) -> Crs {
+        Crs::Utm {
+            epsg,
+            zone: zone as u8,
+            south,
         }
     }
 
     pub fn epsg(&self) -> u32 {
         match *self {
-            Crs::Geographic { epsg } | Crs::JapanPlane { epsg, .. } => epsg,
+            Crs::Geographic { epsg } | Crs::JapanPlane { epsg, .. } | Crs::Utm { epsg, .. } => epsg,
             Crs::WebMercator => 3857,
+            Crs::RdNew => 28992,
         }
     }
 
@@ -73,7 +94,7 @@ impl Crs {
 
     /// 位置合わせを解ける投影座標系か（Web メルカトルは縮尺が緯度で変わるので不可）。
     pub fn is_work_crs(&self) -> bool {
-        matches!(self, Crs::JapanPlane { .. })
+        matches!(self, Crs::JapanPlane { .. } | Crs::Utm { .. } | Crs::RdNew)
     }
 
     fn proj_string(&self) -> String {
@@ -91,6 +112,19 @@ impl Crs {
                      +ellps=GRS80 +towgs84=0,0,0 +units=m +no_defs"
                 )
             }
+            Crs::Utm { zone, south, .. } => format!(
+                "+proj=utm +zone={zone}{} +ellps=GRS80 +towgs84=0,0,0 +units=m +no_defs",
+                if south { " +south" } else { "" }
+            ),
+            // Amersfoort → WGS84 は PROJ の既定（EPSG の Amersfoort to WGS 84 (4)、精度 1 m）と同じ
+            // 7 パラメータ（位置ベクトル法）
+            Crs::RdNew => concat!(
+                "+proj=sterea +lat_0=52.1561605555556 +lon_0=5.38763888888889 +k=0.9999079",
+                " +x_0=155000 +y_0=463000 +ellps=bessel",
+                " +towgs84=565.4171,50.3319,465.5524,-0.398957388243134,0.343987817378283,",
+                "-1.87740163998045,4.0725 +units=m +no_defs"
+            )
+            .into(),
         }
     }
 
@@ -165,7 +199,7 @@ impl Transformer {
 mod tests {
     use super::*;
 
-    /// 期待値は PROJ（pyproj 3.7.0）で求めた。
+    /// 期待値は PROJ（pyproj 3.7.0、PROJ 9.4.1）で求めた。
     #[test]
     fn plane_to_wgs84_matches_proj() {
         let cases = [
@@ -174,6 +208,12 @@ mod tests {
             (6677, -12345.678, -34567.891, 139.6969291834, 35.6883459560),
             (6680, 100000.0, -50000.0, 143.4874525218, 43.5432447238),
             (2447, -90739.918, -63702.478, 133.3341031776, 35.4216727595),
+            (28992, 187000.0, 428000.0, 5.8515280569, 51.8396681590),
+            (25831, 700000.0, 5745000.0, 5.9019728727, 51.8199883702),
+            (32631, 700000.0, 5745000.0, 5.9019728727, 51.8199883691),
+            (32654, 380000.0, 3950000.0, 139.6738201417, 35.6866094838),
+            (6691, 380000.0, 3950000.0, 139.6738201417, 35.6866094848),
+            (32754, 500000.0, 6000000.0, 141.0, -36.1447180988),
         ];
         for (epsg, x, y, lon, lat) in cases {
             let t = Transformer::new(Crs::from_epsg(epsg).unwrap(), Crs::WGS84).unwrap();
@@ -215,7 +255,24 @@ mod tests {
                 zone: 9
             }
         );
-        assert!("EPSG:32654".parse::<Crs>().is_err());
+        assert_eq!(
+            "EPSG:32654".parse::<Crs>().unwrap(),
+            Crs::Utm {
+                epsg: 32654,
+                zone: 54,
+                south: false
+            }
+        );
+        assert_eq!(
+            "6691".parse::<Crs>().unwrap(),
+            Crs::Utm {
+                epsg: 6691,
+                zone: 54,
+                south: false
+            }
+        );
+        assert!("EPSG:28992".parse::<Crs>().unwrap().is_work_crs());
+        assert!("EPSG:2154".parse::<Crs>().is_err());
         assert!(!Crs::WebMercator.is_work_crs());
     }
 }
