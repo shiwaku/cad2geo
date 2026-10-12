@@ -1,0 +1,13 @@
+[package]
+name = "cad2geojson-gen-testdata"
+description = "Generate synthetic drawings with a known georeference for cad2geojson tests"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+acadrust.workspace = true
+# R12 の DXF を cp932 で書く（acadrust は R12 に $DWGCODEPAGE を書くため、Jw_cad と同じ形は手で書く）
+encoding_rs = "0.8"

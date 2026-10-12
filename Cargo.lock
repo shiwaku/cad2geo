@@ -194,6 +194,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "cad2geojson-core",
+ "cad2geojson-gen-testdata",
  "cad2geojson-read",
  "clap",
  "serde",
@@ -208,6 +209,14 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror 2.0.21",
+]
+
+[[package]]
+name = "cad2geojson-gen-testdata"
+version = "0.1.0"
+dependencies = [
+ "acadrust 0.6.4",
+ "encoding_rs",
 ]
 
 [[package]]

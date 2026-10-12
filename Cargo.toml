@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/core", "crates/read", "crates/cli"]
+members = ["crates/core", "crates/read", "crates/cli", "tools/gen_testdata"]
 
 [workspace.package]
 version = "0.1.0"
@@ -11,6 +11,8 @@ repository = "https://github.com/shiwaku/cad2geojson"
 [workspace.dependencies]
 cad2geojson-core = { path = "crates/core" }
 cad2geojson-read = { path = "crates/read" }
+cad2geojson-gen-testdata = { path = "tools/gen_testdata" }
+acadrust = "=0.6.4"
 proj4rs = { version = "0.2.1", default-features = false }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["float_roundtrip"] }

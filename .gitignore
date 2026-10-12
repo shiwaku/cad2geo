@@ -12,6 +12,7 @@ out/
 work/
 
 # 検証用データ。取得した第三者の図面は同梱しない。
-# 合成データの生成スクリプトと、取得手順（testdata/README.md）は追跡する。
+# 取得手順（testdata/README.md）と、生成した合成データ（testdata/synthetic、tools/gen_testdata で作る）は追跡する。
 /testdata/*
 !/testdata/README.md
+!/testdata/synthetic/
