@@ -210,7 +210,7 @@ DWG は Autodesk の独自バイナリ形式で、仕様は公開されていな
 
 | データ | 用途 | 扱い |
 |---|---|---|
-| ビッグシップ施設図面（DXF 3 枚。ODA で DWG にも変換） | 建築図面、部分分け、位置合わせ、DXF の文字コード | 手元のみ（利用条件の記載なし） |
+| ビッグシップ施設図面（DXF 3 枚。ODA で DWG にも変換） | 建築図面、部分分け、位置合わせ、DXF の文字コード | 手元のみ（サイトが著作権を有するとし、二次利用の許可なし） |
 | G空間情報センター 鳥取県「空中写真（オルソ画像）」 | 位置合わせの基準 | 公共データ利用規約 第 1.0 版。[aerial-photo-tile-pipeline](https://github.com/shiwaku/aerial-photo-tile-pipeline) でタイル化 |
 | Autodesk の AutoCAD サンプル（建築系 DWG） | 本物の AutoCAD が書いた DWG | 手元のみ |
 | BODIK の自治体基本図 DXF（北九州市・鹿児島市など）、神奈川県の等高線 DXF | 座標付き図面。公開デモ・CI | CC BY |
