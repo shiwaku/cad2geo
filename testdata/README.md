@@ -36,6 +36,21 @@ curl -o stage_100_1.dxf     $B/user/filer_public/7f/2b/7f2b1574-5a67-4072-8271-d
 
 ## 測量図面（座標付き）
 
+### BODIK に登録された自治体の基本図・地形図 DXF（CC BY）
+
+[BODIK ODCS](https://odcs.bodik.jp/)（カタログ本体は <https://data.bodik.jp/>）に、自治体の基本図・地形図が CC BY の DXF で登録されている。公開デモ・CI のテストにも使える（出典を明記する）。
+
+| データ | 形式 | ライセンス |
+|---|---|---|
+| [北九州市 基本図CADデータ（1:2500）](https://data.bodik.jp/dataset/aa61f3ed-f345-4329-a07c-b598652d9696) | DXF（図郭ごと、一括 ZIP あり） | CC BY |
+| [北九州市 基本図CADデータ（1:10000）](https://data.bodik.jp/dataset/995ec2f1-567b-47cc-83a3-a8f9ec967016) | DXF | CC BY |
+| [鹿児島市基本図（DXF・レベル2500）](https://data.bodik.jp/dataset/24e54921-8a24-4794-a48f-da356eb34f03) | DXF（図郭ごと） | CC BY 4.0 |
+| [三田市地形図データ](https://data.bodik.jp/dataset/130089ee-5b5a-418a-8d86-a4e8942a76fa) | DXF（ZIP 約 90 MB） | CC BY 2.1 |
+| [三重県道路台帳附図](https://data.bodik.jp/dataset/0e9d09c7-ec42-4eb1-a857-c46a844861c8) | DXF（建設事務所ごとの ZIP） | CC BY 4.0 |
+| [宮崎市現況図](https://data.bodik.jp/dataset/fabf23fa-f0f2-4917-a1d7-10a400a71821)、[松浦市地形図](https://data.bodik.jp/dataset/00e5d6d5-756e-4ae8-a146-c6fa539098b3) | SFC | CC BY 4.0（SFC 対応は Phase 2） |
+
+建築図面（平面図）の DXF / DWG は見つからなかった（「北九州市 開発許可データ」は中身が PDF）。
+
 ### 大阪市地形図 DXF（`real/osaka/`）
 
 - 取得元: <https://www.geospatial.jp/ckan/dataset/r07-_dm-dxf-aprx-pdf>（「04_地形図DXFデータ」約 300 MB）
