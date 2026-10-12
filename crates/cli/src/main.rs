@@ -10,7 +10,7 @@ use cad2geo_core::part::Part;
 use clap::{Args, Parser, Subcommand};
 use serde_json::Value;
 
-/// CAD 図面（図面座標の GeoJSON）を、地図に正しい位置で載る GeoJSON（WGS84）にする。
+/// CAD 図面（DWG / DXF、または図面座標の GeoJSON）を、地図に正しい位置で載る GeoJSON（WGS84）にする。
 #[derive(Parser)]
 #[command(version)]
 struct Cli {
@@ -22,14 +22,26 @@ struct Cli {
 enum Command {
     /// 対応点から部分ごとの変換を解き、GeoJSON に適用する
     Georef(GeorefArgs),
-    /// 位置合わせの記録（JSON）をそのまま GeoJSON に適用する
+    /// 位置合わせの記録（JSON）をそのまま適用する
     Apply(ApplyArgs),
+    /// DWG / DXF を図面座標の GeoJSON にする（対応点の図面側の座標を拾うため）
+    Convert(ConvertArgs),
+}
+
+/// 入力の図面。
+#[derive(Args)]
+struct Input {
+    /// DWG / DXF（ASCII）、または図面座標の GeoJSON（dwg2geo の出力など）
+    input: PathBuf,
+    /// DXF の文字コード（DXF の表記。例: ANSI_932）。既定は、記録が無い R12 などで中身から判定する
+    #[arg(long)]
+    dxf_encoding: Option<String>,
 }
 
 #[derive(Args)]
 struct GeorefArgs {
-    /// 図面座標の GeoJSON（dwg2geo の出力など）
-    input: PathBuf,
+    #[command(flatten)]
+    input: Input,
     /// 対応点の CSV: part,cad_x,cad_y,map_x,map_y[,role]（role = control | check）
     #[arg(long)]
     gcp: PathBuf,
@@ -58,11 +70,20 @@ struct GeorefArgs {
 
 #[derive(Args)]
 struct ApplyArgs {
-    /// 図面座標の GeoJSON
-    input: PathBuf,
+    #[command(flatten)]
+    input: Input,
     /// 位置合わせの記録
     #[arg(long)]
     record: PathBuf,
+    #[arg(short, long)]
+    output: PathBuf,
+}
+
+#[derive(Args)]
+struct ConvertArgs {
+    #[command(flatten)]
+    input: Input,
+    /// 出力（図面座標の GeoJSON）
     #[arg(short, long)]
     output: PathBuf,
 }
@@ -71,6 +92,7 @@ fn main() -> Result<()> {
     match Cli::parse().command {
         Command::Georef(a) => run_georef(a),
         Command::Apply(a) => run_apply(a),
+        Command::Convert(a) => run_convert(a),
     }
 }
 
@@ -119,9 +141,44 @@ fn run_apply(a: ApplyArgs) -> Result<()> {
     convert(&a.input, &record, &a.output)
 }
 
-fn convert(input: &Path, record: &Record, output: &Path) -> Result<()> {
-    let gj: Value = serde_json::from_str(&read(input)?)
-        .with_context(|| format!("invalid JSON {}", input.display()))?;
+fn run_convert(a: ConvertArgs) -> Result<()> {
+    let s = load_input(&a.input)?;
+    fs::write(&a.output, s + "\n")
+        .with_context(|| format!("cannot write {}", a.output.display()))?;
+    eprintln!("wrote {}", a.output.display());
+    Ok(())
+}
+
+/// 入力を図面座標の GeoJSON（文字列）にする。GeoJSON ならそのまま返す。
+fn load_input(input: &Input) -> Result<String> {
+    let p = &input.input;
+    let bytes = fs::read(p).with_context(|| format!("cannot read {}", p.display()))?;
+    if bytes.iter().find(|b| !b.is_ascii_whitespace()) == Some(&b'{') {
+        return String::from_utf8(bytes).with_context(|| format!("{} is not UTF-8", p.display()));
+    }
+    let opts = cad2geo_read::Options {
+        dxf_encoding: input.dxf_encoding.clone(),
+        polygonize_closed: false,
+    };
+    let d = cad2geo_read::read(&bytes, &opts)
+        .with_context(|| format!("cannot read {}", p.display()))?;
+    let fmt = match d.format {
+        cad2geo_read::Format::Dwg => "DWG".to_string(),
+        cad2geo_read::Format::Dxf => format!("DXF {}", d.dxf_version.as_deref().unwrap_or("?")),
+    };
+    eprintln!("read {} ({fmt}): {} features", p.display(), d.feature_count);
+    for (kind, reason, n) in &d.skipped {
+        eprintln!("  skipped {n} {kind}: {reason}");
+    }
+    for w in &d.warnings {
+        eprintln!("  warning: {w}");
+    }
+    Ok(d.geojson)
+}
+
+fn convert(input: &Input, record: &Record, output: &Path) -> Result<()> {
+    let gj: Value = serde_json::from_str(&load_input(input)?)
+        .with_context(|| format!("invalid JSON {}", input.input.display()))?;
     let (out, summary) = geojson::apply(&gj, record)?;
     write_geojson(&out, output)?;
     print_summary(&summary, output);

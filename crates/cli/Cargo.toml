@@ -8,6 +8,7 @@ repository.workspace = true
 
 [dependencies]
 cad2geo-core.workspace = true
+cad2geo-read.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 clap.workspace = true

@@ -2,7 +2,7 @@
 
 CAD 図面（DWG / DXF）を、Web 地図（MapLibre GL JS）に**正しい位置で**重ねられる GeoJSON にするためのツール。
 
-> **状態: 開発中（Phase 1）。** 図面座標の GeoJSON を部分に分けて位置合わせし、WGS84 にする CLI ができた。DWG / DXF を直接読む部分はまだ無く、[dwg2geo](https://github.com/milkway/dwg2geo) で図面座標の GeoJSON にしてから渡す。設計は [docs/design.md](docs/design.md)、dwg2geo の評価は [docs/eval-dwg2geo.md](docs/eval-dwg2geo.md) にある。
+> **状態: 開発中（Phase 1）。** DWG / DXF を読み、部分に分けて位置合わせし、WGS84 の GeoJSON にする CLI ができた。設計は [docs/design.md](docs/design.md)、dwg2geo の評価は [docs/eval-dwg2geo.md](docs/eval-dwg2geo.md) にある。
 
 ## 方針
 
@@ -15,27 +15,27 @@ DWG を読んで図形を取り出す部分は、既存の OSS [dwg2geo](https:/
 | 座標系変換 | 純 Rust の proj4rs で WGS84 へ。ブラウザでも動く |
 | 文字の属性の補正 | 文字の回転角・文字高を位置合わせに合わせて直す |
 | 対応点を探す | 地図と図面を並べて点を打つ画面、図形の中心の自動抽出 |
-| DXF | 上流（dwg2geo）への PR を基本に、日本の DXF（Jw_cad 由来の R12 など）の文字コードを正しく扱う |
+| DXF | acadrust で読み、dwg2geo と同じ取り出し方で変換する。日本の DXF（Jw_cad 由来の R12 など）の文字コードを判定する |
 
-変換器として当然あるべきもの（DXF の入力、文字の揃え位置など）は、上流に PR を送る。
+上流（dwg2geo・acadrust）の不足は、上流の公開 API だけを使って cad2geo の中で補う。
 
 ```
-DWG / DXF ─ dwg2geo ─→ 図面座標の GeoJSON ─→ 部分に分ける ─→ 位置合わせ ─→ WGS84 へ ─→ GeoJSON
-                                                              ↑
-                                                         対応点を探す
+DWG ───────────────────┬─ dwg2geo ─→ 図面座標の GeoJSON ─→ 部分に分ける ─→ 位置合わせ ─→ WGS84 へ ─→ GeoJSON
+DXF ─ acadrust → DWG ──┘                                                       ↑
+                                                                          対応点を探す
 ```
 
-- **CLI**（Rust）: dwg2geo を crate として使う
+- **CLI**（Rust）: dwg2geo と acadrust を crate として使う
 - **ブラウザ版**（Vite + MapLibre）: dwg2geo の npm（WASM）で変換し、cad2geo の位置合わせを WASM で動かす。図面をブラウザの外に送らない
 
 ## 使い方
 
 ```sh
-# 1. dwg2geo で図面座標の GeoJSON にする
-dwg2geo convert plan.dwg -o plan.local.geojson --backend native --allow-local-coordinates
+# 1. 図面座標の GeoJSON にして、対応点の図面側の座標を QGIS などで拾う
+cad2geo convert plan.dxf -o plan.local.geojson
 
-# 2. 対応点で位置合わせし、WGS84 の GeoJSON にする
-cad2geo georef plan.local.geojson \
+# 2. 対応点で位置合わせし、WGS84 の GeoJSON にする（入力は DWG / DXF / 図面座標の GeoJSON）
+cad2geo georef plan.dxf \
   --gcp gcp.csv --work-crs EPSG:6673 --units mm \
   --parts parts.json -o plan.geojson
 ```
@@ -65,9 +65,10 @@ part,cad_x,cad_y,map_x,map_y,role
 | `--units` | 図面の単位（`mm` など）。縮尺をこれに固定し、回転と平行移動だけを解く |
 | `--free-scale` | 縮尺も解く（相似変換）。単位が分からないとき |
 | `--record` | 位置合わせの記録の出力先（既定は `<出力>.georef.json`） |
+| `--dxf-encoding` | DXF の文字コード（`ANSI_932` など DXF の表記）。既定では、記録が無い R12 などは中身が cp932 として妥当なら `ANSI_932` で読む |
 
 - 部分ごとの回転・縮尺・平行移動、対応点と検証点の誤差、縮尺を固定しなかった場合の縮尺を表示し、記録（JSON）に書き出す
-- `cad2geo apply plan.local.geojson --record plan.geojson.georef.json -o plan.geojson` で、記録から同じ変換を再現する
+- `cad2geo apply plan.dxf --record plan.geojson.georef.json -o plan.geojson` で、記録から同じ変換を再現する
 - 出力は WGS84 の GeoJSON（`.geojsonl` / `.ndjson` なら 1 行 1 図形）。各図形に `part` 属性を付ける
 - 文字は `text_rotation_deg` を真北基準（子午線収差も補正）・反時計回りの度に、`text_height` を m に直す。元の値は `cad_text_rotation_deg` / `cad_text_height` に残す。MapLibre の `text-rotate` は時計回りなので、符号を反転して使う
 
@@ -107,4 +108,4 @@ DWG は Autodesk の独自バイナリ形式で、仕様は公開されていな
 
 ## ライセンス
 
-MIT
+MIT。依存する [dwg2geo](https://github.com/milkway/dwg2geo) は MIT、[acadrust](https://github.com/hakanaktt/acadrust) は MPL-2.0。

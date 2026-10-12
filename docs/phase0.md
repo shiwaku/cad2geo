@@ -56,12 +56,13 @@ npm の `dwg2geo@0.2.5`（WASM 1.26 MB）を Node 22 で動かした。
 
 dwg2geo は活発だが外部からの貢献の前例が無く、受け入れてもらえるかは送ってみないと分からない。小さく確実なもの（acadrust の更新）から送るのがよい。
 
-## 5. 上流に送るものの候補（順番の案）
+## 5. 上流への対応
 
-| 順 | 送り先 | 種類 | 内容 | 根拠 |
-|---|---|---|---|---|
-| 1 | dwg2geo | PR | acadrust を 0.6 系に上げる（`$MEASUREMENT` が直る） | §2 |
-| 2 | acadrust | issue | `default_encoding` に解釈できない名前を渡すと黙って `ANSI_1252` になる。別名（`cp932` など）を受け付けるか、エラーにしてほしい | §1 |
-| 3 | dwg2geo | PR | DXF の入力（`read_stream()` で DXF を判別し acadrust の `DxfReader` に渡す。`default_encoding` を指定できるようにする） | §1 |
-| 4 | dwg2geo | issue | 位置合わせで縮尺を固定する選択肢、対応点を経緯度で渡したときに投影座標系で解く処理 | 評価 §2.7 |
-| 5 | dwg2geo | issue | 文字の揃え位置の属性、位置合わせを文字の回転角・文字高に反映 | 評価 §2.6・§2.7 |
+当初は dwg2geo・acadrust に PR / issue を送る案（acadrust の更新、DXF の入力、縮尺を固定した位置合わせなど）を立てたが、**本家には送らず、cad2geo の中で対処する**ことにした（設計書 §2.4）。
+
+| 不足 | cad2geo での対処 |
+|---|---|
+| DXF の入力 | acadrust 0.6.4 で読み、DWG（メモリ上）に書き出して dwg2geo の `convert_bytes()` に渡す |
+| R12 の文字コード | 記録が無く中身が cp932 として妥当なら `ANSI_932` を指定する（acadrust の `default_encoding` は DXF の表記しか受け付けないので、別名は使わない） |
+| `$MEASUREMENT` の読み違い | 縮尺は `--units` で明示するので影響しない |
+| 縮尺の固定、経緯度の対応点 | cad2geo の位置合わせで持つ |
