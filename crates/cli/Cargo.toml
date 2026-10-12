@@ -1,0 +1,14 @@
+[package]
+name = "cad2geo"
+description = "Put CAD drawings (DWG / DXF converted to GeoJSON) on web maps at the right place"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+cad2geo-core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+clap.workspace = true
+anyhow.workspace = true
