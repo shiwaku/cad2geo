@@ -4,7 +4,7 @@
 
 ## 1. 目的
 
-CAD 図面（DWG / DXF）を GeoJSON / FlatGeobuf に変換し、MapLibre GL JS などの Web 地図に正しい位置で重ねられるようにする。
+CAD 図面（DWG / DXF）を GeoJSON に変換し、MapLibre GL JS などの Web 地図に正しい位置で重ねられるようにする。
 
 - DWG と DXF を**同じコード**で読む（Rust の core を CLI とブラウザ版で共有する）
 - 単位（mm など）と位置合わせを扱い、**市販 CAD を使わずに**図面から地図に載るデータまでを 1 本で通す
@@ -30,7 +30,7 @@ CAD 図面（DWG / DXF）を GeoJSON / FlatGeobuf に変換し、MapLibre GL JS 
 | 入力 | DWG / DXF（R12〜2018 形式）のモデル空間 | ペーパー空間、外部参照（XREF）の解決、SXF（.sfc / .p21）、DGN |
 | 図形 | 線・ポリライン・円弧・円・楕円・スプライン・点・文字・ブロック参照・寸法（匿名ブロック経由） | HATCH のポリゴン化、3D ソリッド・メッシュ、プロキシオブジェクト（件数だけ報告） |
 | 位置合わせ | 座標付き図面（EPSG 指定）、基準点＋回転角＋縮尺、対応点（2 点以上） | 図面内の GEODATA（AutoCAD の地理位置情報）の読み取り、アフィン以上の変形 |
-| 出力 | GeoJSON（WGS84）、FlatGeobuf（任意の CRS） | PMTiles の直接出力（Phase 1 は tippecanoe に任せる） |
+| 出力 | GeoJSON / GeoJSONSeq（WGS84） | PMTiles の直接出力（Phase 1 は tippecanoe に任せる） |
 | 形態 | CLI、ブラウザ版（WASM + MapLibre） | QGIS プラグイン、サーバー API |
 
 ## 3. 入力: DWG と DXF
@@ -195,12 +195,16 @@ CAD 座標 (図面単位)
 
 ### 6.1 形式
 
-| 形式 | CRS | 用途 |
-|---|---|---|
-| GeoJSON | WGS84 のみ（RFC 7946） | Web 地図・ブラウザ版の書き出し・tippecanoe の入力 |
-| FlatGeobuf | 任意（`--target-crs`、既定は作業 CRS） | QGIS での確認、平面直角座標系のまま渡したいとき |
+出力は **GeoJSON（WGS84、RFC 7946）だけ**にする。
 
-GeoJSON で投影座標を出したい要望には応えない（RFC 7946 に反し、読み手のソフトによって解釈が割れる）。その用途は FlatGeobuf で出す。PMTiles は tippecanoe で作る手順を README に書く。
+| 形式 | 用途 |
+|---|---|
+| GeoJSON | Web 地図・ブラウザ版の書き出し・tippecanoe の入力 |
+| GeoJSONSeq（1 行 1 フィーチャ） | 大きな図面。全体をメモリに持たずに書き出せる。tippecanoe もそのまま読める |
+
+- **FlatGeobuf などの投影座標系での出力は持たない。** 経緯度を倍精度で持てば mm 以下まで表せるので精度は落ちない。平面直角座標系が要るなら QGIS などで変換し直せばよい。出力を 1 つにすれば CLI とブラウザ版で書き出し処理を共有できる
+- GeoJSON に投影座標を入れる要望にも応えない（RFC 7946 に反し、読み手のソフトによって解釈が割れる）
+- PMTiles は tippecanoe で作る手順を README に書く
 
 ### 6.2 属性
 
@@ -228,13 +232,12 @@ cad2geo info <file>
     形式・バージョン・単位（$INSUNITS）・コードページ・外接矩形・レイヤ一覧・
     エンティティ種別ごとの件数・未対応エンティティの件数・座標付き図面かどうかの推定
 
-cad2geo convert <file> -o <out.geojson|out.fgb>
+cad2geo convert <file> -o <out.geojson|out.geojsonl>
     [--crs <EPSG|proj>]                      座標付き図面の CRS
     [--units mm|cm|m|in|ft]                  $INSUNITS の上書き
     [--anchor-cad x,y --anchor-map x,y [--anchor-crs] --rotation deg [--scale s]]
     [--gcp <csv> [--gcp-crs]]
     [--work-crs <EPSG|proj>]                 位置合わせを解く投影座標系
-    [--target-crs <EPSG|proj>]               FlatGeobuf の出力 CRS
     [--swap-xy] [--layers a,b] [--exclude-layers c]
     [--include-hidden-layers] [--close-polygons]
     [--chord-tolerance m] [--codepage cp932]
@@ -297,7 +300,7 @@ cad2geo/
 ├─ Cargo.toml              workspace
 ├─ crates/
 │  ├─ core/                読み込み・エンティティ変換・単位・位置合わせ・座標系変換（I/O なし）
-│  ├─ cli/                 clap。ファイル I/O、GeoJSON / FlatGeobuf 書き出し、ODA 呼び出し
+│  ├─ cli/                 clap。ファイル I/O、GeoJSON / GeoJSONSeq 書き出し、ODA 呼び出し
 │  └─ wasm/                wasm-bindgen。core をブラウザ向けに公開
 ├─ web/                    Vite + MapLibre（pnpm）
 ├─ testdata/               取得したデータ（README.md 以外は追跡しない）
