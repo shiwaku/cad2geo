@@ -1,0 +1,17 @@
+# Rust
+/target/
+**/target/
+
+# Web
+node_modules/
+dist/
+/web/pkg/
+
+# 作業用の中間・出力データ
+out/
+work/
+
+# 検証用データ。取得した第三者の図面は同梱しない。
+# 合成データの生成スクリプトと、取得手順（testdata/README.md）は追跡する。
+/testdata/*
+!/testdata/README.md
