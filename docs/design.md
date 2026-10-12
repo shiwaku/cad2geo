@@ -12,8 +12,8 @@ CAD 図面（DWG / DXF）を GeoJSON / FlatGeobuf に変換し、MapLibre GL JS 
 
 背景は 2 つある。
 
-1. 2024 年 4 月に顧客提供の DWG（平面直角座標系 9 系、mm 単位、AC1032）を GIS データ化したとき、AutoCAD で DXF に変換 → `ogr2ogr` → geopandas で座標を 0.001 倍、と 3 つの道具をまたいだ（esa #1825 / #1837 / #1839）
-2. 社内で CAD を Web 地図に載せたい需要が増えている（建設コンサル系の案件、CAD ビューア開発）。ブラウザで DWG を読む手段（acadrust / LibreDWG の WASM 版）もこの夏に揃った
+1. 2024 年 4 月に顧客提供の DWG（平面直角座標系 9 系、mm 単位、AC1032）を GIS データ化したとき、AutoCAD で DXF に変換 → `ogr2ogr` → geopandas で座標を 0.001 倍、と 3 つの道具をまたいだ
+2. 建設コンサルタントなど、CAD 図面を Web 地図に載せたい需要がある。ブラウザで DWG を読む手段（acadrust / LibreDWG の WASM 版）もこの夏に揃った
 
 ### 先行例: dwg2geo
 
@@ -56,7 +56,7 @@ DWG は Autodesk の独自バイナリ形式で、仕様は公開されていな
 | ライセンス | MPL-2.0（ファイル単位の弱いコピーレフト。MIT のこのリポジトリから依存として使える） |
 | 形式 | DWG・DXF（ASCII / バイナリ）の読み書き |
 | バージョン | AC1009 (R12) / AC1012 (R13) / AC1014 (R14) / AC1015 (2000) / AC1018 (2004) / AC1021 (2007) / AC1024 (2010) / AC1027 (2013) / AC1032 (2018+) |
-| WASM | `wasm32-unknown-unknown` でのビルドを CI で確認している。社内の dwg-maplibre（groovyjovy/dwg-maplibre）で `acadrust = "0.4.1"` を WASM 化して動いた実績がある |
+| WASM | `wasm32-unknown-unknown` でのビルドを CI で確認している。[groovyjovy/dwg-maplibre](https://github.com/groovyjovy/dwg-maplibre) で `acadrust = "0.4.1"` を WASM 化し、MapLibre に重ねた実例がある |
 | 文字コード | 2007 より前の図面のコードページ（約 40 種）を自動判定 |
 | 未確認 | `$INSUNITS` の取得 API、GEODATA オブジェクトの対応、OCS（押し出し方向）の扱い。**実装の最初に確認する** |
 
