@@ -2,12 +2,15 @@
 //!
 //! 記録を入力に渡せば同じ変換を再現できる（対応点を解き直さない）。
 
+use std::collections::BTreeMap;
+
 use serde::{Deserialize, Serialize};
 
 use crate::Error;
 use crate::crs::{Crs, Transformer};
 use crate::fit::{self, ErrorStats, Model, Pair, Similarity};
 use crate::part::Part;
+use crate::relate::Relation;
 
 pub const RECORD_VERSION: u32 = 1;
 
@@ -47,6 +50,8 @@ pub struct Request {
     pub gcp_crs: Crs,
     pub work_crs: Crs,
     pub scale: ScaleMode,
+    /// `follow` を持つ部分の、相手の部分への関係（部分の名前ごと）
+    pub relations: BTreeMap<String, Relation>,
 }
 
 /// 対応点 1 つの結果。
@@ -65,9 +70,12 @@ pub struct PointResult {
 pub struct PartGeoref {
     #[serde(flatten)]
     pub part: Part,
-    /// 載せない部分には無い
+    /// 載せない部分と、ほかの部分に合わせた部分には無い
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub model: Option<Model>,
+    /// ほかの部分に合わせた部分の、相手の部分への関係。`transform` はこれと相手の変換を合成したもの
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub relation: Option<Relation>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub transform: Option<Similarity>,
     /// 縮尺を固定したとき、相似変換で解いた場合の縮尺（単位の誤りや対応点の偏りに気づくため）
@@ -119,7 +127,7 @@ impl Record {
     }
 }
 
-/// 部分ごとに対応点から変換を解く。
+/// 部分ごとに対応点から変換を解く。`follow` を持つ部分は、相手の部分の変換に関係を合成して決める。
 pub fn solve(req: &Request) -> Result<Record, Error> {
     if !req.work_crs.is_work_crs() {
         return Err(Error::NotWorkCrs(req.work_crs.to_string()));
@@ -134,86 +142,147 @@ pub fn solve(req: &Request) -> Result<Record, Error> {
             return Err(Error::UnknownPart(g.part.clone()));
         }
     }
+    for p in parts.iter().filter(|p| p.place) {
+        let Some(to) = &p.follow else { continue };
+        if !parts
+            .iter()
+            .any(|q| &q.name == to && q.place && q.name != p.name)
+        {
+            return Err(Error::Relation(format!(
+                "part '{}' follows '{to}', which is not another placed part",
+                p.name
+            )));
+        }
+        if req
+            .gcps
+            .iter()
+            .any(|g| g.part == p.name && g.role == Role::Control)
+        {
+            return Err(Error::Relation(format!(
+                "part '{}' follows '{to}'; give its points with role check",
+                p.name
+            )));
+        }
+        if !req.relations.contains_key(&p.name) {
+            return Err(Error::Relation(format!(
+                "no relation from part '{}' to '{to}'",
+                p.name
+            )));
+        }
+    }
     let to_work = Transformer::new(req.gcp_crs, req.work_crs)?;
 
-    let mut out = Vec::with_capacity(parts.len());
-    for part in parts {
-        if !part.place {
-            out.push(PartGeoref {
-                part,
-                model: None,
-                transform: None,
-                free_scale: None,
-                control: vec![],
-                check: vec![],
-                control_error: None,
-                check_error: None,
-            });
-            continue;
-        }
-        let mut control = vec![];
-        let mut check = vec![];
-        for g in req.gcps.iter().filter(|g| g.part == part.name) {
-            let (x, y) = to_work.transform(g.map[0], g.map[1])?;
-            let pr = PointResult {
-                cad: g.cad,
-                map: g.map,
-                map_work: [x, y],
-                residual: [0.0, 0.0],
+    let mut out: Vec<Option<PartGeoref>> = vec![None; parts.len()];
+    // 相手が決まった部分から順に決める（合わせる先がさらに合わせていてもよい）
+    while out.iter().any(Option::is_none) {
+        let mut progressed = false;
+        for (i, part) in parts.iter().enumerate() {
+            if out[i].is_some() {
+                continue;
+            }
+            let base = match &part.follow {
+                Some(to) if part.place => {
+                    let j = parts.iter().position(|q| &q.name == to).unwrap();
+                    match out[j].as_ref().and_then(|q| q.transform) {
+                        Some(t) => Some(t),
+                        None => continue,
+                    }
+                }
+                _ => None,
             };
-            match g.role {
-                Role::Control => control.push(pr),
-                Role::Check => check.push(pr),
-            }
+            out[i] = Some(solve_part(part, req, &to_work, base)?);
+            progressed = true;
         }
-        let pairs: Vec<Pair> = control
-            .iter()
-            .map(|p| Pair {
-                cad: p.cad,
-                map: p.map_work,
-            })
-            .collect();
-        if pairs.len() < 2 {
-            return Err(Error::PartTooFewPoints {
-                part: part.name.clone(),
-                got: pairs.len(),
-            });
+        if !progressed {
+            return Err(Error::Relation("parts follow each other in a cycle".into()));
         }
-        let model = match req.scale {
-            ScaleMode::Fixed(s) => Model::Rigid { scale: s },
-            ScaleMode::Free => Model::Similarity,
-        };
-        let t = fit::solve(&pairs, model)?;
-        let free_scale = match req.scale {
-            ScaleMode::Fixed(_) => Some(fit::solve(&pairs, Model::Similarity)?.scale),
-            ScaleMode::Free => None,
-        };
-        let fill = |pts: &mut Vec<PointResult>| {
-            for p in pts.iter_mut() {
-                let (x, y) = t.apply(p.cad[0], p.cad[1]);
-                p.residual = [p.map_work[0] - x, p.map_work[1] - y];
-            }
-            ErrorStats::of(&pts.iter().map(|p| p.residual).collect::<Vec<_>>())
-        };
-        let control_error = fill(&mut control);
-        let check_error = fill(&mut check);
-        out.push(PartGeoref {
-            part,
-            model: Some(model),
-            transform: Some(t),
-            free_scale,
-            control,
-            check,
-            control_error,
-            check_error,
-        });
     }
     Ok(Record {
         cad2geojson_georef: RECORD_VERSION,
         work_crs: req.work_crs.to_string(),
         gcp_crs: req.gcp_crs.to_string(),
-        parts: out,
+        parts: out.into_iter().map(Option::unwrap).collect(),
     })
+}
+
+/// 部分 1 つを解く。`base` は合わせる先の部分の変換（`follow` のとき）。
+fn solve_part(
+    part: &Part,
+    req: &Request,
+    to_work: &Transformer,
+    base: Option<Similarity>,
+) -> Result<PartGeoref, Error> {
+    let mut r = PartGeoref {
+        part: part.clone(),
+        model: None,
+        relation: None,
+        transform: None,
+        free_scale: None,
+        control: vec![],
+        check: vec![],
+        control_error: None,
+        check_error: None,
+    };
+    if !part.place {
+        return Ok(r);
+    }
+    for g in req.gcps.iter().filter(|g| g.part == part.name) {
+        let (x, y) = to_work.transform(g.map[0], g.map[1])?;
+        let pr = PointResult {
+            cad: g.cad,
+            map: g.map,
+            map_work: [x, y],
+            residual: [0.0, 0.0],
+        };
+        match g.role {
+            Role::Control => r.control.push(pr),
+            Role::Check => r.check.push(pr),
+        }
+    }
+    let t = match base {
+        Some(base) => {
+            let rel = req.relations[&part.name].clone();
+            let t = rel.transform.then(&base);
+            r.relation = Some(rel);
+            t
+        }
+        None => {
+            let pairs: Vec<Pair> = r
+                .control
+                .iter()
+                .map(|p| Pair {
+                    cad: p.cad,
+                    map: p.map_work,
+                })
+                .collect();
+            if pairs.len() < 2 {
+                return Err(Error::PartTooFewPoints {
+                    part: part.name.clone(),
+                    got: pairs.len(),
+                });
+            }
+            let model = match req.scale {
+                ScaleMode::Fixed(s) => Model::Rigid { scale: s },
+                ScaleMode::Free => Model::Similarity,
+            };
+            r.model = Some(model);
+            if let ScaleMode::Fixed(_) = req.scale {
+                r.free_scale = Some(fit::solve(&pairs, Model::Similarity)?.scale);
+            }
+            fit::solve(&pairs, model)?
+        }
+    };
+    let fill = |pts: &mut Vec<PointResult>| {
+        for p in pts.iter_mut() {
+            let (x, y) = t.apply(p.cad[0], p.cad[1]);
+            p.residual = [p.map_work[0] - x, p.map_work[1] - y];
+        }
+        ErrorStats::of(&pts.iter().map(|p| p.residual).collect::<Vec<_>>())
+    };
+    r.control_error = fill(&mut r.control);
+    r.check_error = fill(&mut r.check);
+    r.transform = Some(t);
+    Ok(r)
 }
 
 #[cfg(test)]
@@ -230,6 +299,7 @@ mod tests {
                 bbox: None,
                 layers: vec![],
                 place: true,
+                follow: None,
             }],
             gcps: vec![
                 Gcp {
@@ -248,6 +318,7 @@ mod tests {
             gcp_crs: Crs::from_epsg(6673).unwrap(),
             work_crs: Crs::from_epsg(6673).unwrap(),
             scale: ScaleMode::Fixed(0.001),
+            relations: BTreeMap::new(),
         };
         let r = solve(&req).unwrap();
         let t = r.parts[0].transform.unwrap();
@@ -299,6 +370,7 @@ mod tests {
             gcp_crs: Crs::WGS84,
             work_crs: work,
             scale: ScaleMode::Fixed(0.001),
+            relations: BTreeMap::new(),
         };
         let r = solve(&req).unwrap();
         let p = &r.parts[0];
@@ -318,6 +390,7 @@ mod tests {
             gcp_crs: Crs::WGS84,
             work_crs: Crs::WGS84,
             scale: ScaleMode::Free,
+            relations: BTreeMap::new(),
         };
         assert!(matches!(solve(&base), Err(Error::NotWorkCrs(_))));
         let req = Request {
@@ -336,5 +409,88 @@ mod tests {
             ..base
         };
         assert!(matches!(solve(&req), Err(Error::UnknownPart(_))));
+    }
+
+    #[test]
+    fn follower_is_composed_with_its_target() {
+        let c = Crs::from_epsg(6673).unwrap();
+        // 2F: 図面 (0,0)→(-90000,-63000)、回転 90°
+        let gcps = vec![
+            Gcp {
+                part: "2F".into(),
+                cad: [0.0, 0.0],
+                map: [-90000.0, -63000.0],
+                role: Role::Control,
+            },
+            Gcp {
+                part: "2F".into(),
+                cad: [1000.0, 0.0],
+                map: [-90000.0, -62999.0],
+                role: Role::Control,
+            },
+            // 1F の (0, 100000) は 2F の (0, 0) と同じ場所 → 地図の (-90000, -63000)
+            Gcp {
+                part: "1F".into(),
+                cad: [0.0, 100000.0],
+                map: [-90000.0, -63000.0],
+                role: Role::Check,
+            },
+        ];
+        let rel = Relation {
+            to: "2F".into(),
+            transform: Similarity {
+                scale: 1.0,
+                rotation_deg: 0.0,
+                translation: [0.0, -100000.0],
+            },
+            residual_median: 0.0,
+            residual_max: 0.0,
+            runner_up: 0,
+            pairs: vec![],
+        };
+        let parts = vec![
+            Part {
+                name: "1F".into(),
+                bbox: Some([-1e9, 50000.0, 1e9, 1e9]),
+                follow: Some("2F".into()),
+                ..Part::whole()
+            },
+            Part {
+                name: "2F".into(),
+                ..Part::whole()
+            },
+        ];
+        let req = Request {
+            parts,
+            gcps,
+            gcp_crs: c,
+            work_crs: c,
+            scale: ScaleMode::Fixed(0.001),
+            relations: BTreeMap::from([("1F".to_string(), rel)]),
+        };
+        let r = solve(&req).unwrap();
+        let f1 = &r.parts[0];
+        assert!(f1.model.is_none() && f1.relation.is_some());
+        let t = f1.transform.unwrap();
+        assert!((t.rotation_deg - 90.0).abs() < 1e-9);
+        assert!(f1.check_error.unwrap().max < 1e-6);
+        let back = Record::from_json(&serde_json::to_string(&r).unwrap()).unwrap();
+        assert_eq!(back, r);
+
+        // 合わせる部分に対応点（control）は与えられない
+        let mut bad = req.clone();
+        bad.gcps[2].role = Role::Control;
+        assert!(matches!(solve(&bad), Err(Error::Relation(_))));
+        // 関係が無い
+        let mut bad = req.clone();
+        bad.relations.clear();
+        assert!(matches!(solve(&bad), Err(Error::Relation(_))));
+        // 互いに合わせている
+        let mut bad = req;
+        bad.parts[1].follow = Some("1F".into());
+        bad.gcps.clear();
+        bad.relations
+            .insert("2F".into(), bad.relations["1F"].clone());
+        assert!(matches!(solve(&bad), Err(Error::Relation(_))));
     }
 }

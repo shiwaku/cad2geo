@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::fs;
 use std::io::{BufWriter, Write};
 use std::path::{Path, PathBuf};
@@ -7,6 +8,7 @@ use cad2geojson_core::crs::Crs;
 use cad2geojson_core::geojson::{self, Summary};
 use cad2geojson_core::georef::{self, Gcp, Record, Request, Role, ScaleMode};
 use cad2geojson_core::part::Part;
+use cad2geojson_core::relate;
 use clap::{Args, Parser, Subcommand};
 use serde_json::Value;
 
@@ -117,12 +119,29 @@ fn run_georef(a: GeorefArgs) -> Result<()> {
         }
         None => vec![],
     };
+    let gj = load_geojson(&a.input)?;
+    let mut relations = BTreeMap::new();
+    if parts.iter().any(|p| p.place && p.follow.is_some()) {
+        let circles = relate::circles_by_part(&gj, &parts)?;
+        for (i, p) in parts.iter().enumerate() {
+            let Some(to) = p.follow.as_ref().filter(|_| p.place) else {
+                continue;
+            };
+            let Some(j) = parts.iter().position(|q| &q.name == to) else {
+                bail!("part '{}' follows unknown part '{to}'", p.name);
+            };
+            let rel = relate::relate(&circles[i], &circles[j], to)
+                .with_context(|| format!("cannot place part '{}' by '{to}'", p.name))?;
+            relations.insert(p.name.clone(), rel);
+        }
+    }
     let req = Request {
         parts,
         gcps: read_gcps(&a.gcp)?,
         gcp_crs: a.gcp_crs.unwrap_or(a.work_crs),
         work_crs: a.work_crs,
         scale,
+        relations,
     };
     let record = georef::solve(&req)?;
     print_record(&record);
@@ -133,12 +152,12 @@ fn run_georef(a: GeorefArgs) -> Result<()> {
     fs::write(&record_path, serde_json::to_string_pretty(&record)? + "\n")
         .with_context(|| format!("cannot write {}", record_path.display()))?;
     eprintln!("record: {}", record_path.display());
-    convert(&a.input, &record, &a.output)
+    convert(&gj, &record, &a.output)
 }
 
 fn run_apply(a: ApplyArgs) -> Result<()> {
     let record = Record::from_json(&read(&a.record)?)?;
-    convert(&a.input, &record, &a.output)
+    convert(&load_geojson(&a.input)?, &record, &a.output)
 }
 
 fn run_convert(a: ConvertArgs) -> Result<()> {
@@ -176,10 +195,13 @@ fn load_input(input: &Input) -> Result<String> {
     Ok(d.geojson)
 }
 
-fn convert(input: &Input, record: &Record, output: &Path) -> Result<()> {
-    let gj: Value = serde_json::from_str(&load_input(input)?)
-        .with_context(|| format!("invalid JSON {}", input.input.display()))?;
-    let (out, summary) = geojson::apply(&gj, record)?;
+fn load_geojson(input: &Input) -> Result<Value> {
+    serde_json::from_str(&load_input(input)?)
+        .with_context(|| format!("invalid JSON {}", input.input.display()))
+}
+
+fn convert(gj: &Value, record: &Record, output: &Path) -> Result<()> {
+    let (out, summary) = geojson::apply(gj, record)?;
     write_geojson(&out, output)?;
     print_summary(&summary, output);
     Ok(())
@@ -284,6 +306,22 @@ fn print_record(r: &Record) {
             "part {}: rotation {:.4} deg, scale {}, translation ({:.3}, {:.3})",
             p.part.name, t.rotation_deg, t.scale, t.translation[0], t.translation[1]
         );
+        if let Some(r) = &p.relation {
+            eprintln!(
+                "  placed by part {}: {} common circles, rotation {:+.4} deg, residual median {:.1} / max {:.1} (drawing units)",
+                r.to,
+                r.pairs.len(),
+                r.transform.rotation_deg,
+                r.residual_median,
+                r.residual_max
+            );
+            eprintln!("  next best offset matched {} circles", r.runner_up);
+            if r.runner_up * 2 > r.pairs.len() {
+                eprintln!(
+                    "  warning: another offset matches almost as many circles; check the result"
+                );
+            }
+        }
         if let Some(fs) = p.free_scale {
             eprintln!(
                 "  scale solved freely would be {:.7} ({:+.2}% vs fixed)",

@@ -117,7 +117,7 @@ fn round(v: f64) -> f64 {
     (v * k).round() / k
 }
 
-fn xy(c: &[Value]) -> Result<(f64, f64), Error> {
+pub(crate) fn xy(c: &[Value]) -> Result<(f64, f64), Error> {
     match (
         c.first().and_then(Value::as_f64),
         c.get(1).and_then(Value::as_f64),
@@ -157,7 +157,7 @@ fn walk(v: &mut Value, f: &mut dyn FnMut(&mut [Value]) -> Result<(), Error>) -> 
     Ok(())
 }
 
-fn bbox_center(geom: &Value) -> Option<[f64; 2]> {
+pub(crate) fn bbox_center(geom: &Value) -> Option<[f64; 2]> {
     let mut b = [
         f64::INFINITY,
         f64::INFINITY,
@@ -243,12 +243,14 @@ mod tests {
                 bbox: Some([-5000.0, -5000.0, 5000.0, 5000.0]),
                 layers: vec![],
                 place: true,
+                follow: None,
             },
             Part {
                 name: "frame".into(),
                 bbox: Some([10000.0, 0.0, 20000.0, 10000.0]),
                 layers: vec![],
                 place: false,
+                follow: None,
             },
         ];
         let c = Crs::from_epsg(6673).unwrap();
@@ -258,6 +260,7 @@ mod tests {
             gcp_crs: c,
             work_crs: c,
             scale: ScaleMode::Fixed(0.001),
+            relations: Default::default(),
         })
         .unwrap()
     }

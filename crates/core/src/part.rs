@@ -15,6 +15,9 @@ pub struct Part {
     /// 地図に載せるか（図枠・凡例などは false）
     #[serde(default = "yes", skip_serializing_if = "is_true")]
     pub place: bool,
+    /// 位置を対応点でなく、共通する円（柱など）でこの部分に合わせて決める（1 階を 2 階に合わせるなど）
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub follow: Option<String>,
 }
 
 fn yes() -> bool {
@@ -33,6 +36,7 @@ impl Part {
             bbox: None,
             layers: vec![],
             place: true,
+            follow: None,
         }
     }
 
@@ -63,18 +67,21 @@ mod tests {
                 bbox: None,
                 layers: vec!["WAKU".into()],
                 place: false,
+                follow: None,
             },
             Part {
                 name: "2F".into(),
                 bbox: Some([0.0, -100.0, 100.0, 0.0]),
                 layers: vec![],
                 place: true,
+                follow: None,
             },
             Part {
                 name: "1F".into(),
                 bbox: Some([0.0, 0.0, 100.0, 100.0]),
                 layers: vec![],
                 place: true,
+                follow: None,
             },
         ];
         assert_eq!(assign(&parts, [50.0, -50.0], Some("WALL")), Some(1));
