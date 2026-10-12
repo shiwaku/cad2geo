@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/core", "crates/cli"]
+members = ["crates/core", "crates/read", "crates/cli"]
 
 [workspace.package]
 version = "0.1.0"
@@ -10,6 +10,7 @@ repository = "https://github.com/shiwaku/cad2geo"
 
 [workspace.dependencies]
 cad2geo-core = { path = "crates/core" }
+cad2geo-read = { path = "crates/read" }
 proj4rs = { version = "0.2.1", default-features = false }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["float_roundtrip"] }
