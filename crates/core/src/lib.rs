@@ -10,10 +10,12 @@ pub mod relate;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    #[error("unsupported CRS: {0} (supported: EPSG:4326, 6668, 4612, 3857, 6669-6687, 2443-2461)")]
+    #[error(
+        "unsupported CRS: {0} (supported: EPSG:4326, 6668, 4612, 3857, 6669-6687, 2443-2461,          UTM 32601-32660 / 32701-32760 / 25828-25838 / 6688-6692 / 3097-3101, 28992)"
+    )]
     UnsupportedCrs(String),
     #[error(
-        "{0} cannot be used as the work CRS; use a Japan Plane Rectangular CRS (EPSG:6669-6687)"
+        "{0} cannot be used as the work CRS; use a projected CRS (Japan Plane Rectangular EPSG:6669-6687, UTM or RD New)"
     )]
     NotWorkCrs(String),
     #[error("projection error: {0}")]
