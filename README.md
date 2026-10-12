@@ -1,6 +1,6 @@
 # cad2geo
 
-CAD 図面（DWG / DXF）を地理空間データ（GeoJSON / FlatGeobuf）に変換し、Web 地図（MapLibre GL JS）に重ねるためのツール。
+CAD 図面（DWG / DXF）をGeoJSON に変換し、Web 地図（MapLibre GL JS）に重ねるためのツール。
 
 > **状態: 設計段階。** 実装はまだ無い。設計は [docs/design.md](docs/design.md) にある。
 
@@ -24,7 +24,7 @@ cad2geo
 │     INSERT → ブロック展開 (入れ子・属性付きブロック含む)
 │   属性: レイヤ名・色・線種・ハンドル・ブロック名
 │   単位の解決 ($INSUNITS、無ければ引数で指定) → 位置合わせ → 出力 CRS
-├─ cli   ネイティブ実行。GeoJSON / FlatGeobuf 出力 (PMTiles 化は tippecanoe)
+├─ cli   ネイティブ実行。GeoJSON / GeoJSONSeq 出力 (PMTiles 化は tippecanoe)
 └─ web   WASM + MapLibre。ファイルをドロップ → 地図に重ねる → ドラッグで位置合わせ → GeoJSON 保存
 ```
 
