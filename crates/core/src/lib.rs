@@ -6,6 +6,7 @@ pub mod fit;
 pub mod geojson;
 pub mod georef;
 pub mod part;
+pub mod relate;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -27,6 +28,8 @@ pub enum Error {
     UnknownPart(String),
     #[error("invalid georef record: {0}")]
     Record(String),
+    #[error("cannot relate parts: {0}")]
+    Relation(String),
     #[error("invalid GeoJSON: {0}")]
     GeoJson(String),
 }
