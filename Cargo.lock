@@ -189,19 +189,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1fd0f2584146f6f2ef48085050886acf353beff7305ebd1ae69500e27c67f64b"
 
 [[package]]
-name = "cad2geo"
+name = "cad2geojson"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "cad2geo-core",
- "cad2geo-read",
+ "cad2geojson-core",
+ "cad2geojson-read",
  "clap",
  "serde",
  "serde_json",
 ]
 
 [[package]]
-name = "cad2geo-core"
+name = "cad2geojson-core"
 version = "0.1.0"
 dependencies = [
  "proj4rs",
@@ -211,7 +211,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "cad2geo-read"
+name = "cad2geojson-read"
 version = "0.1.0"
 dependencies = [
  "acadrust 0.6.4",

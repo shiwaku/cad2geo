@@ -86,7 +86,7 @@ pub struct PartGeoref {
 /// 位置合わせの記録。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Record {
-    pub cad2geo_georef: u32,
+    pub cad2geojson_georef: u32,
     /// 作業用の投影座標系（"EPSG:6673" など）
     pub work_crs: String,
     pub gcp_crs: String,
@@ -100,10 +100,10 @@ impl Record {
 
     pub fn from_json(s: &str) -> Result<Record, Error> {
         let r: Record = serde_json::from_str(s).map_err(|e| Error::Record(e.to_string()))?;
-        if r.cad2geo_georef != RECORD_VERSION {
+        if r.cad2geojson_georef != RECORD_VERSION {
             return Err(Error::Record(format!(
                 "unsupported record version {}",
-                r.cad2geo_georef
+                r.cad2geojson_georef
             )));
         }
         for p in &r.parts {
@@ -209,7 +209,7 @@ pub fn solve(req: &Request) -> Result<Record, Error> {
         });
     }
     Ok(Record {
-        cad2geo_georef: RECORD_VERSION,
+        cad2geojson_georef: RECORD_VERSION,
         work_crs: req.work_crs.to_string(),
         gcp_crs: req.gcp_crs.to_string(),
         parts: out,

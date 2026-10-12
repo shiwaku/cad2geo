@@ -90,7 +90,7 @@ pub fn apply(input: &Value, record: &Record) -> Result<(Value, Summary), Error> 
 
     let fc = json!({
         "type": "FeatureCollection",
-        "cad2geo": {
+        "cad2geojson": {
             "work_crs": record.work_crs,
             "parts": record.parts.iter().filter(|p| p.part.place).map(|p| &p.part.name).collect::<Vec<_>>(),
         },
