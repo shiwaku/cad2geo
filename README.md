@@ -2,7 +2,7 @@
 
 CAD 図面（DWG / DXF）を、Web 地図（MapLibre GL JS）に**正しい位置で**重ねられる GeoJSON にするためのツール。
 
-> **状態: 開発中（Phase 1）。** DWG / DXF を読み、部分に分けて位置合わせし、WGS84 の GeoJSON にする CLI ができた。設計は [docs/design.md](docs/design.md)、dwg2geo の評価は [docs/eval-dwg2geo.md](docs/eval-dwg2geo.md) にある。
+> **状態: 開発中（Phase 1）。** DWG / DXF を読み、部分に分けて位置合わせし、WGS84 の GeoJSON にする CLI ができた。設計は [docs/design.md](docs/design.md)、dwg2geo の評価は [docs/eval-dwg2geo.md](docs/eval-dwg2geo.md)、調べた関連ツールは [docs/related-tools.md](docs/related-tools.md) にある。
 
 ## 方針
 
