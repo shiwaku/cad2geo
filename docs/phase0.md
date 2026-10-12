@@ -17,7 +17,7 @@ acadrust 0.6.4 の `DxfReader` で、ビッグシップの施設図面 DXF 3 枚
 - ただし指定できるのは DXF の表記（`ANSI_932`）だけで、`cp932` / `shift_jis` / `windows-31j` は**黙って無視され `ANSI_1252` で読まれる**。エラーにならないので気づきにくい（acadrust への issue の候補）
 - MTEXT の値には書式コードが残る（例: `{\fメイリオ|b0|i0|c128|p0;天井反射板（１）}`）。dwg2geo は `text` に書式を除いた値、`text_raw` に元の値を出す
 
-**cad2geo への示唆**: `$DWGCODEPAGE` の無い R12 の DXF は、文字列のバイト列が cp932 として妥当で日本語の文字を含むかを見て、そうなら `ANSI_932` を指定して読み直す。Jw_cad 由来の図面はこれで読める。
+**cad2geojson への示唆**: `$DWGCODEPAGE` の無い R12 の DXF は、文字列のバイト列が cp932 として妥当で日本語の文字を含むかを見て、そうなら `ANSI_932` を指定して読み直す。Jw_cad 由来の図面はこれで読める。
 
 ## 2. `$MEASUREMENT` の読み違い
 
@@ -58,11 +58,11 @@ dwg2geo は活発だが外部からの貢献の前例が無く、受け入れて
 
 ## 5. 上流への対応
 
-当初は dwg2geo・acadrust に PR / issue を送る案（acadrust の更新、DXF の入力、縮尺を固定した位置合わせなど）を立てたが、**本家には送らず、cad2geo の中で対処する**ことにした（設計書 §2.4）。
+当初は dwg2geo・acadrust に PR / issue を送る案（acadrust の更新、DXF の入力、縮尺を固定した位置合わせなど）を立てたが、**本家には送らず、cad2geojson の中で対処する**ことにした（設計書 §2.4）。
 
-| 不足 | cad2geo での対処 |
+| 不足 | cad2geojson での対処 |
 |---|---|
 | DXF の入力 | acadrust 0.6.4 で読み、DWG（メモリ上）に書き出して dwg2geo の `convert_bytes()` に渡す |
 | R12 の文字コード | 記録が無く中身が cp932 として妥当なら `ANSI_932` を指定する（acadrust の `default_encoding` は DXF の表記しか受け付けないので、別名は使わない） |
 | `$MEASUREMENT` の読み違い | 縮尺は `--units` で明示するので影響しない |
-| 縮尺の固定、経緯度の対応点 | cad2geo の位置合わせで持つ |
+| 縮尺の固定、経緯度の対応点 | cad2geojson の位置合わせで持つ |

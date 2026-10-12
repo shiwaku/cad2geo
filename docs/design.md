@@ -1,4 +1,4 @@
-# 設計書: cad2geo — CAD 図面を地図に正しく載せる
+# 設計書: cad2geojson — CAD 図面を地図に正しく載せる
 
 作成: 2026-10-12 / 改訂: 2026-10-12（dwg2geo を土台にする方針に変更） / 状態: **Phase 0 完了**（実装未着手）
 
@@ -7,7 +7,7 @@
 CAD 図面（DWG / DXF）を、MapLibre GL JS などの Web 地図に**正しい位置で**重ねられる GeoJSON にする。
 
 - 変換（DWG を読んで図形を取り出す）は既存の OSS [dwg2geo](https://github.com/milkway/dwg2geo) に任せる
-- cad2geo は、dwg2geo に無い **「地図に正しく載せる」部分**を作る。位置合わせ、図面の部分ごとの扱い、日本の座標系、DXF の文字コード
+- cad2geojson は、dwg2geo に無い **「地図に正しく載せる」部分**を作る。位置合わせ、図面の部分ごとの扱い、日本の座標系、DXF の文字コード
 - ブラウザ版は**変換サーバーなし**で動かす（図面を外部に送らなくて済む）
 
 背景は 2 つある。
@@ -19,7 +19,7 @@ CAD 図面（DWG / DXF）を、MapLibre GL JS などの Web 地図に**正しい
 
 ### 2.1 経緯
 
-最初の設計（acadrust を直接使って一から作る）のあとに、ほぼ同じ目的の dwg2geo（MIT、v0.2.5）が見つかった。実在の建築図面で評価した結果（[eval-dwg2geo.md](eval-dwg2geo.md)）から、変換は dwg2geo に任せ、cad2geo は足りない部分に絞ることにした。
+最初の設計（acadrust を直接使って一から作る）のあとに、ほぼ同じ目的の dwg2geo（MIT、v0.2.5）が見つかった。実在の建築図面で評価した結果（[eval-dwg2geo.md](eval-dwg2geo.md)）から、変換は dwg2geo に任せ、cad2geojson は足りない部分に絞ることにした。
 
 ### 2.2 dwg2geo に任せること（評価で確認済み）
 
@@ -32,7 +32,7 @@ CAD 図面（DWG / DXF）を、MapLibre GL JS などの Web 地図に**正しい
 | 相似変換の計算 | 対応点から最小二乗で解き、残差と RMS を出す |
 | ブラウザ | npm パッケージ（WASM）。ライブラリ API `convert_bytes()` はバイト列から図面座標の GeoJSON を返し、ファイル I/O を持たない |
 
-### 2.3 cad2geo が作ること（評価で分かった不足）
+### 2.3 cad2geojson が作ること（評価で分かった不足）
 
 | # | 不足 | 評価で起きたこと |
 |---|---|---|
@@ -45,17 +45,17 @@ CAD 図面（DWG / DXF）を、MapLibre GL JS などの Web 地図に**正しい
 | 7 | **対応点を探す手段が無い** | 一番手間がかかる。今回は図形の中心の自動抽出で済ませた |
 | 8 | **`$MEASUREMENT` の読み違い** | mm 図面を english と報告。acadrust 0.5.1 固定が原因（Phase 0 で確認） |
 
-### 2.4 不足の扱い: 上流に PR は送らず、cad2geo の中で対処する
+### 2.4 不足の扱い: 上流に PR は送らず、cad2geojson の中で対処する
 
-dwg2geo・acadrust の本家には PR を送らない。不足は cad2geo の中で、上流の公開 API だけを使って補う。
+dwg2geo・acadrust の本家には PR を送らない。不足は cad2geojson の中で、上流の公開 API だけを使って補う。
 
 | 不足 | 対処 |
 |---|---|
 | 1 DXF の入力 | acadrust 0.6 で DXF を読み、DWG（メモリ上）に書き出して dwg2geo の `convert_bytes()` に渡す（`crates/read`）。図形の取り出し方が DWG と同じになる。ビッグシップの DXF 3 枚で、ODA で変換した DWG と図形・レイヤ・文字列が一致した |
 | 1 DXF の文字コード | `$DWGCODEPAGE` の無い R2007 より前の DXF は、中身が cp932 として妥当なら `ANSI_932` で読む。`--dxf-encoding` で指定もできる |
-| 8 `$MEASUREMENT` | cad2geo は縮尺を `--units` で明示して固定するので、位置合わせには影響しない |
-| 6 文字の揃え位置 | 必要になったら cad2geo 側で扱う（未対応） |
-| 2・3・4・5・6（回転角・文字高）・7 | cad2geo（位置合わせと地図表示の話） |
+| 8 `$MEASUREMENT` | cad2geojson は縮尺を `--units` で明示して固定するので、位置合わせには影響しない |
+| 6 文字の揃え位置 | 必要になったら cad2geojson 側で扱う（未対応） |
+| 2・3・4・5・6（回転角・文字高）・7 | cad2geojson（位置合わせと地図表示の話） |
 
 DXF の経路は acadrust を 2 つの版（dwg2geo が使う 0.5.1 と、DXF を読む 0.6.4）で持つ。0.5.1 は R12 の DXF を読めないため。acadrust の DWG の書き出しは元の版のまま書くので、R12 の DXF は R2000（AC1015）として書く（R12 形式の書き出しは Jw_cad の図面で失敗した）。
 
@@ -63,7 +63,7 @@ DXF の経路は acadrust を 2 つの版（dwg2geo が使う 0.5.1 と、DXF �
 ## 3. 構成
 
 ```
-                ┌──────────────────────────── cad2geo ────────────────────────────┐
+                ┌──────────────────────────── cad2geojson ────────────────────────────┐
 DWG ─┐          │                                                                  │
      ├─ dwg2geo ─┤→ 図面座標の GeoJSON ─→ ① 部分に分ける ─→ ② 位置合わせ ─→ ③ 座標系変換 ─┤→ GeoJSON（WGS84）
 DXF ─┘ (convert │   ＋ レポート            （階・図枠）     （部分ごと）      （WGS84 へ）  │  ＋ 位置合わせの記録（JSON）
@@ -73,8 +73,8 @@ DXF ─┘ (convert │   ＋ レポート            （階・図枠）     （
 ```
 
 - **CLI**（Rust）: dwg2geo を crate として使う（`native-backend` 機能）
-- **ブラウザ版**（Vite + MapLibre）: dwg2geo の npm（WASM）で変換し、cad2geo の位置合わせを WASM で動かす
-- cad2geo の中核（①〜④）は **Rust の crate 1 つ**にまとめ、CLI と WASM で共有する。ファイル I/O は持たない
+- **ブラウザ版**（Vite + MapLibre）: dwg2geo の npm（WASM）で変換し、cad2geojson の位置合わせを WASM で動かす
+- cad2geojson の中核（①〜④）は **Rust の crate 1 つ**にまとめ、CLI と WASM で共有する。ファイル I/O は持たない
 
 ## 4. 部分に分ける（①）
 
@@ -152,7 +152,7 @@ DXF ─┘ (convert │   ＋ レポート            （階・図枠）     （
 - [x] acadrust で DXF を読み、ビッグシップの 3 ファイルの日本語を確かめた。R2000・R2010 は正しい。R12（文字コード記録なし）は `default_encoding = "ANSI_932"` を指定すれば正しい
 - [x] acadrust 0.6.4 は DWG の `$MEASUREMENT` を正しく読む。dwg2geo の読み違いは acadrust 0.5.1 固定が原因
 - [x] npm の WASM 版は Node で CLI 版と同じ結果（24,664 図形を 1.4 秒）
-- [x] dwg2geo は作者 1 名・外部からの issue / PR は 0 件。上流への PR は送らず cad2geo の中で対処することにした（phase0.md §5、§2.4）
+- [x] dwg2geo は作者 1 名・外部からの issue / PR は 0 件。上流への PR は送らず cad2geojson の中で対処することにした（phase0.md §5、§2.4）
 
 ### Phase 1: CLI
 
@@ -226,7 +226,7 @@ DWG は Autodesk の独自バイナリ形式で、仕様は公開されていな
 ## 11. リポジトリ構成
 
 ```
-cad2geo/
+cad2geojson/
 ├─ Cargo.toml              workspace
 ├─ crates/
 │  ├─ core/                部分分け・位置合わせ・座標系変換・文字の属性の補正（I/O なし）
@@ -245,8 +245,8 @@ cad2geo/
 
 | 項目 | 影響 | 対応 |
 |---|---|---|
-| dwg2geo が個人の若いプロジェクト（0.x） | 更新が止まる、破壊的変更 | バージョン固定。MIT なので、止まったらフォークできる。cad2geo の位置合わせは図面座標の GeoJSON を入力にし、変換器に依存しない |
-| 上流に PR を送らない方針 | 上流の不足が直らない | cad2geo の中で上流の公開 API だけを使って補う（§2.4） |
+| dwg2geo が個人の若いプロジェクト（0.x） | 更新が止まる、破壊的変更 | バージョン固定。MIT なので、止まったらフォークできる。cad2geojson の位置合わせは図面座標の GeoJSON を入力にし、変換器に依存しない |
+| 上流に PR を送らない方針 | 上流の不足が直らない | cad2geojson の中で上流の公開 API だけを使って補う（§2.4） |
 | DWG の仕様が非公開 | 新しい形式・珍しいエンティティが欠ける | 本物の AutoCAD の DWG で検証。DXF 版との一致で検出 |
 | 対応点の取り方で精度が決まる | 位置合わせの誤差 | 検証点と、独立な量（向きなど）での確認を仕組みに入れる。対応点の残差だけで判断しない |
 | 航空写真の屋根の倒れ込み | 高い建物で数十 cm〜1 m の偏り | 低い建物を優先し、縮尺を固定する |

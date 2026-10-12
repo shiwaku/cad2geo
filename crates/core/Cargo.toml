@@ -1,5 +1,5 @@
 [package]
-name = "cad2geo-core"
+name = "cad2geojson-core"
 description = "Georeference CAD drawings converted to GeoJSON: parts, fitting, reprojection"
 version.workspace = true
 edition.workspace = true

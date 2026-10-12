@@ -1,4 +1,4 @@
-//! cad2geo の中核。図面座標の GeoJSON を部分に分け、部分ごとに位置合わせし、WGS84 にする。
+//! cad2geojson の中核。図面座標の GeoJSON を部分に分け、部分ごとに位置合わせし、WGS84 にする。
 //! ファイル I/O は持たない（CLI と WASM で共有する）。
 
 pub mod crs;

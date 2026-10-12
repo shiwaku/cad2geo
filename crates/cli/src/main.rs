@@ -3,10 +3,10 @@ use std::io::{BufWriter, Write};
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, bail};
-use cad2geo_core::crs::Crs;
-use cad2geo_core::geojson::{self, Summary};
-use cad2geo_core::georef::{self, Gcp, Record, Request, Role, ScaleMode};
-use cad2geo_core::part::Part;
+use cad2geojson_core::crs::Crs;
+use cad2geojson_core::geojson::{self, Summary};
+use cad2geojson_core::georef::{self, Gcp, Record, Request, Role, ScaleMode};
+use cad2geojson_core::part::Part;
 use clap::{Args, Parser, Subcommand};
 use serde_json::Value;
 
@@ -156,15 +156,15 @@ fn load_input(input: &Input) -> Result<String> {
     if bytes.iter().find(|b| !b.is_ascii_whitespace()) == Some(&b'{') {
         return String::from_utf8(bytes).with_context(|| format!("{} is not UTF-8", p.display()));
     }
-    let opts = cad2geo_read::Options {
+    let opts = cad2geojson_read::Options {
         dxf_encoding: input.dxf_encoding.clone(),
         polygonize_closed: false,
     };
-    let d = cad2geo_read::read(&bytes, &opts)
+    let d = cad2geojson_read::read(&bytes, &opts)
         .with_context(|| format!("cannot read {}", p.display()))?;
     let fmt = match d.format {
-        cad2geo_read::Format::Dwg => "DWG".to_string(),
-        cad2geo_read::Format::Dxf => format!("DXF {}", d.dxf_version.as_deref().unwrap_or("?")),
+        cad2geojson_read::Format::Dwg => "DWG".to_string(),
+        cad2geojson_read::Format::Dxf => format!("DXF {}", d.dxf_version.as_deref().unwrap_or("?")),
     };
     eprintln!("read {} ({fmt}): {} features", p.display(), d.feature_count);
     for (kind, reason, n) in &d.skipped {
@@ -336,7 +336,7 @@ mod tests {
 
     #[test]
     fn gcp_csv() {
-        let dir = std::env::temp_dir().join(format!("cad2geo-test-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("cad2geojson-test-{}", std::process::id()));
         fs::create_dir_all(&dir).unwrap();
         let p = dir.join("gcp.csv");
         fs::write(
