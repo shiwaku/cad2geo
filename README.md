@@ -2,7 +2,7 @@
 
 CAD 図面（DWG / DXF）を地理空間データ（GeoJSON / FlatGeobuf）に変換し、Web 地図（MapLibre GL JS）に重ねるためのツール。
 
-> **状態: 設計段階。** 実装はまだ無い。
+> **状態: 設計段階。** 実装はまだ無い。設計は [docs/design.md](docs/design.md) にある。
 
 ## 目的
 
@@ -40,7 +40,18 @@ cad2geo
 | WASM | `wasm32-unknown-unknown` でビルドできることを CI で確認している |
 | 文字コード | 2007 より前の図面のコードページ（約 40 種）を自動判定 |
 
-比較した他の選択肢:
+### DWG の仕様は公開されていない
+
+DWG は Autodesk の独自バイナリ形式で、仕様は公開されていない。公式に読み書きできるのは Autodesk 製品と、同社の有償 SDK（RealDWG）のライセンス製品である。OSS が DWG を読めるのは、Open Design Alliance（ODA）が解析結果を「Open Design Specification for .dwg files」として無料公開しているなど、リバースエンジニアリングの蓄積があるためだ。一方 DXF は Autodesk が仕様（DXF Reference）を公開している。
+
+そのため、このツールでは次のように扱う。
+
+- DWG は**完全に読める保証がない**。新しい形式（AC1032）や珍しいエンティティは欠ける可能性がある
+- 合成データだけでなく、**実際の CAD ソフトが書いた DWG** で検証する
+- 直接読めない DWG は、ODA File Converter（無料）で DXF に変換してから読む経路を残す
+- 「DWG」の名称は Autodesk との商標問題の経緯があるため、「DWG ファイルを読み込める」という説明的な表現にとどめ、公式対応を連想させる書き方はしない
+
+### 比較した他の選択肢
 
 - **LibreDWG / libredwg-web**: GPL。DWG は 2018 形式まで
 - **GDAL (libopencad)**: DWG は R2000 まで。GDAL の DWG ドライバ本体は ODA Drawings SDK（有償）が必要
