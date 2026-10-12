@@ -2,7 +2,7 @@
 
 CAD 図面（DWG / DXF）を、Web 地図（MapLibre GL JS）に**正しい位置で**重ねられる GeoJSON にするためのツール。
 
-> **状態: 設計段階。** 実装はまだ無い。設計は [docs/design.md](docs/design.md)、土台にする dwg2geo の評価は [docs/eval-dwg2geo.md](docs/eval-dwg2geo.md) にある。
+> **状態: 開発中（Phase 1）。** 図面座標の GeoJSON を部分に分けて位置合わせし、WGS84 にする CLI ができた。DWG / DXF を直接読む部分はまだ無く、[dwg2geo](https://github.com/milkway/dwg2geo) で図面座標の GeoJSON にしてから渡す。設計は [docs/design.md](docs/design.md)、dwg2geo の評価は [docs/eval-dwg2geo.md](docs/eval-dwg2geo.md) にある。
 
 ## 方針
 
@@ -28,6 +28,56 @@ DWG / DXF ─ dwg2geo ─→ 図面座標の GeoJSON ─→ 部分に分ける �
 - **CLI**（Rust）: dwg2geo を crate として使う
 - **ブラウザ版**（Vite + MapLibre）: dwg2geo の npm（WASM）で変換し、cad2geo の位置合わせを WASM で動かす。図面をブラウザの外に送らない
 
+## 使い方
+
+```sh
+# 1. dwg2geo で図面座標の GeoJSON にする
+dwg2geo convert plan.dwg -o plan.local.geojson --backend native --allow-local-coordinates
+
+# 2. 対応点で位置合わせし、WGS84 の GeoJSON にする
+cad2geo georef plan.local.geojson \
+  --gcp gcp.csv --work-crs EPSG:6673 --units mm \
+  --parts parts.json -o plan.geojson
+```
+
+`gcp.csv`（`role` は `control`（既定）か `check`。検証点は変換を解くのに使わず、誤差だけを出す）:
+
+```csv
+part,cad_x,cad_y,map_x,map_y,role
+2F,39255.06,-65843.09,-90816.425,-63700.253,control
+2F,117327.53,-2802.34,-90806.444,-63798.360,control
+```
+
+`parts.json`（図形は外接矩形の中心で、先に書いた部分から振り分ける。`place: false` の部分は出力しない）:
+
+```json
+{"parts": [
+  {"name": "frame", "bbox": [2363, 162928, 66520, 193193], "place": false},
+  {"name": "1F", "bbox": [-1e9, 60000, 1e9, 1e9]},
+  {"name": "2F", "bbox": [-1e9, -1e9, 1e9, 60000], "layers": []}
+]}
+```
+
+| オプション | 内容 |
+|---|---|
+| `--work-crs` | 変換を解く平面直角座標系（必須。系は自動で選ばない） |
+| `--gcp-crs` | 対応点の地図側の CRS（既定は `--work-crs`）。経緯度（EPSG:4326）で渡しても作業用の座標系で解く |
+| `--units` | 図面の単位（`mm` など）。縮尺をこれに固定し、回転と平行移動だけを解く |
+| `--free-scale` | 縮尺も解く（相似変換）。単位が分からないとき |
+| `--record` | 位置合わせの記録の出力先（既定は `<出力>.georef.json`） |
+
+- 部分ごとの回転・縮尺・平行移動、対応点と検証点の誤差、縮尺を固定しなかった場合の縮尺を表示し、記録（JSON）に書き出す
+- `cad2geo apply plan.local.geojson --record plan.geojson.georef.json -o plan.geojson` で、記録から同じ変換を再現する
+- 出力は WGS84 の GeoJSON（`.geojsonl` / `.ndjson` なら 1 行 1 図形）。各図形に `part` 属性を付ける
+- 文字は `text_rotation_deg` を真北基準（子午線収差も補正）・反時計回りの度に、`text_height` を m に直す。元の値は `cad_text_rotation_deg` / `cad_text_height` に残す。MapLibre の `text-rotate` は時計回りなので、符号を反転して使う
+
+## ビルド
+
+```sh
+cargo build --release   # target/release/cad2geo
+```
+
+Windows の Git Bash では `/usr/bin/link` が MSVC の `link.exe` より先に見つかるので、cargo は PowerShell から実行する。
 ## DWG の仕様は公開されていない
 
 DWG は Autodesk の独自バイナリ形式で、仕様は公開されていない。公式に読み書きできるのは Autodesk 製品と、同社の有償 SDK（RealDWG）のライセンス製品である。OSS が DWG を読めるのは、Open Design Alliance（ODA）が解析結果を「Open Design Specification for .dwg files」として無料公開しているなど、リバースエンジニアリングの蓄積があるためだ。一方 DXF は Autodesk が仕様（DXF Reference）を公開している。
