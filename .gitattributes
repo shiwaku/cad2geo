@@ -1,3 +1,5 @@
 * text=auto eol=lf
 *.dwg binary
 *.dxf -text
+# 生成データはバイト単位で比べる（tools/gen_testdata のテスト）。改行を変換しない
+/testdata/synthetic/** -text
